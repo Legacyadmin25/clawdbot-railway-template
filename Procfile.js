@@ -1,1 +1,0 @@
-web: node bridge.js & node /openclaw/dist/entry.js

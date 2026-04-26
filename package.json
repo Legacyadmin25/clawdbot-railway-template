@@ -2,7 +2,8 @@
   "name": "openclaw",
   "version": "1.0.0",
   "scripts": {
-    "start": "node bridge.js"
+    "prestart": "node bridge.js &",
+    "start": "openclaw gateway --allow-unconfigured"
   },
   "dependencies": {
     "fs": "0.0.1-security"
