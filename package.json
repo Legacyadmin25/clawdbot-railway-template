@@ -1,20 +1,10 @@
 {
-  "name": "clawdbot-railway-template",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=22"
-  },
+  "name": "openclaw",
+  "version": "1.0.0",
   "scripts": {
-    "dev": "node src/server.js",
-    "start": "node src/server.js",
-    "lint": "node -c src/server.js",
-    "test": "node --test",
-    "smoke": "node scripts/smoke.js"
+    "start": "node bridge.js & node main.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "http-proxy": "^1.18.1",
-    "tar": "^7.5.4"
+    "fs": "0.0.1-security"
   }
 }
