@@ -1,5 +1,5 @@
 FROM node:22-slim
 WORKDIR /app
-COPY bridge.js .
-RUN npm install express
+COPY . .
+RUN npm install
 CMD ["node", "bridge.js"]
