@@ -190,3 +190,22 @@ docker run --rm -p 8080:8080 \
 - **11000+ deploys on Railway and counting** [Link to template on Railway](https://railway.com/deploy/clawdbot-railway-template)
 
 ![Railway template deploy count](assets/railway-deploys.jpg)
+
+## Bridge relay (developer → architect)
+
+Tasks now travel over HTTP instead of the old `/data/mailbox` flow.
+
+- `bridge.js` POSTs each task to `http://openclaw-bridge.railway.internal:3000/tasks`.
+- Override the destination with `ARCHITECT_BRIDGE_URL` if the architect service runs elsewhere.
+- `npm start` (called by the Procfile) launches `bridge.js` first, then `openclaw gateway --allow-unconfigured`, so both run automatically in one process group.
+- Health check: the architect bridge exposes `GET /healthz`. The developer logs whether each relay succeeded or if the architect responded with an error code.
+
+### Deploy order
+
+1. Redeploy the architect bridge (`openclaw-bridge`) first.
+2. Redeploy this developer template second.
+3. Verify:
+   ```
+   curl https://<architect-app>.railway.app/healthz
+   ```
+   Then trigger a test task; the architect logs `Architect received task: …` confirming the relay.
