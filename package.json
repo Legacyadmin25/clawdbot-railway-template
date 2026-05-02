@@ -1,11 +1,1 @@
-{
-  "name": "openclaw",
-  "version": "1.0.0",
-  "scripts": {
-    "prestart": "node bridge.js &",
-    "start": "openclaw gateway --allow-unconfigured"
-  },
-  "dependencies": {
-    "fs": "0.0.1-security"
-  }
-}
+{"name":"openclaw","version":"1.0.0","scripts":{"prestart":"node bridge.js &","start":"openclaw gateway --allow-unconfigured"},"dependencies":{"node-fetch":"^2.7.0"}}
