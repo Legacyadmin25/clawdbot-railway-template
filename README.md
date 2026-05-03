@@ -200,6 +200,15 @@ Tasks now travel over HTTP instead of the old `/data/mailbox` flow.
 - `npm start` (called by the Procfile) launches `bridge.js` first, then `openclaw gateway --allow-unconfigured`, so both run automatically in one process group.
 - Health check: the architect bridge exposes `GET /healthz`. The developer logs whether each relay succeeded or if the architect responded with an error code.
 
+### Local smoke test
+
+```bash
+npm install
+npm run smoke:test
+```
+
+This spins up a temporary local architect listener and verifies that `bridge.js` POSTs a sample payload successfully.
+
 ### Deploy order
 
 1. Redeploy the architect bridge (`openclaw-bridge`) first.
