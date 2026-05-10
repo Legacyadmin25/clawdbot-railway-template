@@ -23,6 +23,18 @@ for (const suffix of ["PUBLIC_PORT", "STATE_DIR", "WORKSPACE_DIR", "GATEWAY_TOKE
   delete process.env[oldKey];
 }
 
+// Disable gateway auto-start entirely when OPENCLAW_DISABLE_AUTO_START is set.
+// This is the recommended setting for Railway production deployments where only
+// the Express wrapper should run (no child processes, no port conflicts).
+// Local development (where the variable is not set) continues to work normally.
+const GATEWAY_DISABLED =
+  process.env.OPENCLAW_DISABLE_AUTO_START === "true" ||
+  process.env.OPENCLAW_DISABLE_AUTO_START === "1";
+
+if (GATEWAY_DISABLED) {
+  console.log("[wrapper] OPENCLAW_DISABLE_AUTO_START is set — gateway will not be spawned.");
+}
+
 // Railway injects PORT at runtime and routes traffic to that port.
 // Do not force a different public port in the container image, or the service may
 // boot but the Railway domain will be routed to a different port.
@@ -172,6 +184,7 @@ async function waitForGatewayReady(opts = {}) {
 }
 
 async function startGateway() {
+  if (GATEWAY_DISABLED) throw new Error("Gateway is disabled in this environment");
   if (gatewayProc) return;
   if (!isConfigured()) throw new Error("Gateway cannot start: not configured");
 
@@ -231,6 +244,7 @@ async function runDoctorBestEffort() {
 }
 
 async function ensureGatewayRunning() {
+  if (GATEWAY_DISABLED) return { ok: false, reason: "gateway disabled" };
   if (!isConfigured()) return { ok: false, reason: "not configured" };
   if (gatewayProc) return { ok: true };
   if (!gatewayStarting) {
@@ -329,7 +343,7 @@ async function probeGateway() {
 // Keep this free of secrets.
 app.get("/healthz", async (_req, res) => {
   let gatewayReachable = false;
-  if (isConfigured()) {
+  if (!GATEWAY_DISABLED && isConfigured()) {
     try {
       gatewayReachable = await probeGateway();
     } catch {
@@ -345,11 +359,12 @@ app.get("/healthz", async (_req, res) => {
       workspaceDir: WORKSPACE_DIR,
     },
     gateway: {
-      target: GATEWAY_TARGET,
-      reachable: gatewayReachable,
-      lastError: lastGatewayError,
-      lastExit: lastGatewayExit,
-      lastDoctorAt,
+      disabled: GATEWAY_DISABLED,
+      target: GATEWAY_DISABLED ? null : GATEWAY_TARGET,
+      reachable: GATEWAY_DISABLED ? false : gatewayReachable,
+      lastError: GATEWAY_DISABLED ? null : lastGatewayError,
+      lastExit: GATEWAY_DISABLED ? null : lastGatewayExit,
+      lastDoctorAt: GATEWAY_DISABLED ? null : lastDoctorAt,
     },
   });
 });
@@ -584,7 +599,8 @@ app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
 
   res.json({
     configured: isConfigured(),
-    gatewayTarget: GATEWAY_TARGET,
+    gatewayDisabled: GATEWAY_DISABLED,
+    gatewayTarget: GATEWAY_DISABLED ? null : GATEWAY_TARGET,
     openclawVersion: version.output.trim(),
     channelsAddHelp: channelsHelp.output,
     authGroups: AUTH_GROUPS,
@@ -1371,6 +1387,19 @@ app.use(requireDashboardAuth, async (req, res) => {
     return res.redirect("/setup");
   }
 
+  // When the gateway is disabled, proxy requests cannot be fulfilled.
+  // Return a clear 503 so the setup UI can surface the disabled state.
+  if (GATEWAY_DISABLED) {
+    return res
+      .status(503)
+      .type("text/plain")
+      .send(
+        "Gateway is disabled in this environment (OPENCLAW_DISABLE_AUTO_START=true).\n" +
+        "The Express wrapper is running but no OpenClaw gateway process will be spawned.\n" +
+        "Visit /setup to see the setup UI.",
+      );
+  }
+
   if (isConfigured()) {
     try {
       await ensureGatewayRunning();
@@ -1448,7 +1477,10 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
 
   // Auto-start the gateway if already configured so polling channels (Telegram/Discord/etc.)
   // work even if nobody visits the web UI.
-  if (isConfigured()) {
+  // Skip entirely when OPENCLAW_DISABLE_AUTO_START is set (Railway production mode).
+  if (GATEWAY_DISABLED) {
+    console.log("[wrapper] gateway auto-start skipped (OPENCLAW_DISABLE_AUTO_START is set).");
+  } else if (isConfigured()) {
     console.log("[wrapper] config detected; starting gateway...");
     try {
       await ensureGatewayRunning();
@@ -1464,7 +1496,7 @@ server.on("upgrade", async (req, socket, head) => {
   // in WebSocket handshakes. Do not enforce dashboard Basic auth at the upgrade layer.
   // The gateway authenticates at the protocol layer and we inject the gateway token below.
 
-  if (!isConfigured()) {
+  if (GATEWAY_DISABLED || !isConfigured()) {
     socket.destroy();
     return;
   }
